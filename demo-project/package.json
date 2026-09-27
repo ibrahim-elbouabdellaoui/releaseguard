@@ -1,0 +1,18 @@
+{
+  "name": "shopflow-api",
+  "version": "1.4.2",
+  "description": "ShopFlow internal order management API (synthetic demo project for ReleaseGuard)",
+  "main": "src/api/server.js",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "express": "^4.18.2",
+    "zod": "^3.21.4"
+  },
+  "devDependencies": {
+    "jest": "^29.6.0",
+    "@types/jest": "^29.5.3"
+  }
+}

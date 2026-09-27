@@ -1,0 +1,142 @@
+{
+  "changeId": "change-001",
+  "meta": {
+    "title": "Enrich user profile response + bump zod dependency",
+    "author": "Dev Team",
+    "date": "2024-01-15T09:30:00Z",
+    "description": "Adds lastLoginAt and orderCount to the UserService.getUser() response. Also removes the try/catch error handler from PaymentService.processPayment() and upgrades zod from 3.21.4 to 3.22.4.",
+    "prDescription": "## What changed\n- `UserService.getUser()` now returns an enriched profile with `lastLoginAt` and `orderCount` derived fields.\n- `PaymentService.processPayment()` error handler removed to 'simplify' the code path.\n- `zod` bumped from 3.21.4 to 3.22.4.\n\n## Why\nFrontend dashboard requested additional user metrics in the profile response. Error handler removal was accidental cleanup.\n\n## Risk\nNot assessed."
+  },
+  "diff": "diff --git a/src/services/userService.js b/src/services/userService.js\nindex a1b2c3d..e4f5a6b 100644\n--- a/src/services/userService.js\n+++ b/src/services/userService.js\n@@ -1,10 +1,10 @@\n /**\n  * UserService — manages user account lookups and profile data.\n  * Used by OrderService, PaymentService, and the /users API handler.\n  */\n \n /**\n  * @typedef {Object} UserProfile\n  * @property {string} id\n  * @property {string} email\n  * @property {string} name\n  * @property {\"standard\" | \"premium\" | \"enterprise\"} tier\n  * @property {boolean} active\n+ * @property {string} [lastLoginAt]\n+ * @property {number} [orderCount]\n  */\n \n@@ -18,16 +20,22 @@ const userStore = new Map([\n /**\n  * Retrieves a user profile by ID.\n- * Returns null if the user does not exist.\n+ * Returns an enriched user profile object including derived fields.\n+ * BREAKING: response shape has changed — callers that destructure only\n+ * { id, email, name, tier, active } will now receive additional fields.\n  *\n  * @param {string} userId\n- * @returns {{ id: string, email: string, name: string, tier: string, active: boolean } | null}\n+ * @returns {{ id: string, email: string, name: string, tier: string, active: boolean, lastLoginAt: string, orderCount: number } | null}\n  */\n function getUser(userId) {\n   const user = userStore.get(userId);\n-  return user ?? null;\n+  if (!user) return null;\n+  // Enrich with derived fields\n+  return {\n+    ...user,\n+    lastLoginAt: new Date(Date.now() - Math.random() * 7 * 24 * 3600 * 1000).toISOString(),\n+    orderCount: Math.floor(Math.random() * 50),\n+  };\n }\n \ndiff --git a/src/services/paymentService.js b/src/services/paymentService.js\nindex b7c8d9e..f0a1b2c 100644\n--- a/src/services/paymentService.js\n+++ b/src/services/paymentService.js\n@@ -38,14 +38,11 @@ async function processPayment(orderId, userId, amount) {\n   try {\n     const response = await axios.post(`${PAYMENT_GATEWAY_URL}/charge`, {\n       orderId,\n       userId,\n       amount: finalAmount,\n       currency: \"USD\",\n     });\n     return response.data;\n-  } catch (err) {\n-    // Error handler present — logs and re-throws for caller to handle\n-    console.error(`Payment failed for order ${orderId}:`, err.message);\n-    throw err;\n-  }\n+  }\n+  // RISK: error handler removed — payment failures will now propagate as unhandled rejections\n }\n \ndiff --git a/package.json b/package.json\nindex c1d2e3f..a4b5c6d 100644\n--- a/package.json\n+++ b/package.json\n@@ -1,14 +1,14 @@\n {\n   \"name\": \"shopflow-api\",\n   \"version\": \"1.4.2\",\n   \"description\": \"ShopFlow internal order management API (synthetic demo project for ReleaseGuard)\",\n   \"main\": \"src/api/server.js\",\n   \"scripts\": {\n     \"test\": \"node --experimental-vm-modules node_modules/.bin/jest\"\n   },\n   \"dependencies\": {\n     \"axios\": \"^1.5.0\",\n     \"express\": \"^4.18.2\",\n-    \"zod\": \"^3.21.4\"\n+    \"zod\": \"^3.22.4\"\n   },\n   \"devDependencies\": {\n     \"jest\": \"^29.6.0\",\n     \"@types/jest\": \"^29.5.3\"\n   }\n }\n",
+  "parsedDiff": [
+    {
+      "filePath": "src/services/userService.js",
+      "linesAdded": 13,
+      "linesRemoved": 3,
+      "hunks": [
+        {
+          "header": "@@ -1,10 +1,10 @@",
+          "lines": [
+            " /**",
+            "  * UserService — manages user account lookups and profile data.",
+            "  * Used by OrderService, PaymentService, and the /users API handler.",
+            "  */",
+            " ",
+            " /**",
+            "  * @typedef {Object} UserProfile",
+            "  * @property {string} id",
+            "  * @property {string} email",
+            "  * @property {string} name",
+            "  * @property {\"standard\" | \"premium\" | \"enterprise\"} tier",
+            "  * @property {boolean} active",
+            "+ * @property {string} [lastLoginAt]",
+            "+ * @property {number} [orderCount]",
+            "  */",
+            " "
+          ]
+        },
+        {
+          "header": "@@ -18,16 +20,22 @@ const userStore = new Map([",
+          "lines": [
+            " /**",
+            "  * Retrieves a user profile by ID.",
+            "- * Returns null if the user does not exist.",
+            "+ * Returns an enriched user profile object including derived fields.",
+            "+ * BREAKING: response shape has changed — callers that destructure only",
+            "+ * { id, email, name, tier, active } will now receive additional fields.",
+            "  *",
+            "  * @param {string} userId",
+            "- * @returns {{ id: string, email: string, name: string, tier: string, active: boolean } | null}",
+            "+ * @returns {{ id: string, email: string, name: string, tier: string, active: boolean, lastLoginAt: string, orderCount: number } | null}",
+            "  */",
+            " function getUser(userId) {",
+            "   const user = userStore.get(userId);",
+            "-  return user ?? null;",
+            "+  if (!user) return null;",
+            "+  // Enrich with derived fields",
+            "+  return {",
+            "+    ...user,",
+            "+    lastLoginAt: new Date(Date.now() - Math.random() * 7 * 24 * 3600 * 1000).toISOString(),",
+            "+    orderCount: Math.floor(Math.random() * 50),",
+            "+  };",
+            " }",
+            " "
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/services/paymentService.js",
+      "linesAdded": 2,
+      "linesRemoved": 5,
+      "hunks": [
+        {
+          "header": "@@ -38,14 +38,11 @@ async function processPayment(orderId, userId, amount) {",
+          "lines": [
+            "   try {",
+            "     const response = await axios.post(`${PAYMENT_GATEWAY_URL}/charge`, {",
+            "       orderId,",
+            "       userId,",
+            "       amount: finalAmount,",
+            "       currency: \"USD\",",
+            "     });",
+            "     return response.data;",
+            "-  } catch (err) {",
+            "-    // Error handler present — logs and re-throws for caller to handle",
+            "-    console.error(`Payment failed for order ${orderId}:`, err.message);",
+            "-    throw err;",
+            "-  }",
+            "+  }",
+            "+  // RISK: error handler removed — payment failures will now propagate as unhandled rejections",
+            " }",
+            " "
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "package.json",
+      "linesAdded": 1,
+      "linesRemoved": 1,
+      "hunks": [
+        {
+          "header": "@@ -1,14 +1,14 @@",
+          "lines": [
+            " {",
+            "   \"name\": \"shopflow-api\",",
+            "   \"version\": \"1.4.2\",",
+            "   \"description\": \"ShopFlow internal order management API (synthetic demo project for ReleaseGuard)\",",
+            "   \"main\": \"src/api/server.js\",",
+            "   \"scripts\": {",
+            "     \"test\": \"node --experimental-vm-modules node_modules/.bin/jest\"",
+            "   },",
+            "   \"dependencies\": {",
+            "     \"axios\": \"^1.5.0\",",
+            "     \"express\": \"^4.18.2\",",
+            "-    \"zod\": \"^3.21.4\"",
+            "+    \"zod\": \"^3.22.4\"",
+            "   },",
+            "   \"devDependencies\": {",
+            "     \"jest\": \"^29.6.0\",",
+            "     \"@types/jest\": \"^29.5.3\"",
+            "   }",
+            " }",
+            ""
+          ]
+        }
+      ]
+    }
+  ],
+  "testInventory": [
+    "tests/userService.test.js",
+    "tests/validation.test.js"
+  ],
+  "dependencyManifest": {
+    "before": {
+      "zod": "^3.21.4"
+    },
+    "after": {
+      "zod": "^3.22.4"
+    }
+  }
+}

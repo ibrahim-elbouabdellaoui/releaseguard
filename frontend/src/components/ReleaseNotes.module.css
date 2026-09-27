@@ -1,0 +1,92 @@
+.wrapper {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px 24px;
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2328;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.para {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.boldLine {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2328;
+  line-height: 1.6;
+}
+
+.listItem {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+  padding-left: 16px;
+  position: relative;
+}
+
+.listItem::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #57606a;
+}
+
+.tableRow {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+}
+
+.tableRow:first-child {
+  font-weight: 600;
+  background: #f7f8fa;
+}
+
+.tableCell {
+  flex: 1;
+  padding: 6px 10px;
+  color: #374151;
+  border-right: 1px solid #e5e7eb;
+}
+
+.tableCell:first-child {
+  border-left: 1px solid #e5e7eb;
+}
+
+.hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 12px 0;
+}
+
+.code {
+  background: #f7f8fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  color: #1f2328;
+}

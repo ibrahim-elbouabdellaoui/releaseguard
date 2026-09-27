@@ -1,0 +1,74 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logoMark {
+  font-size: 20px;
+  color: #3b82d4;
+}
+
+.logoText {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: #1f2328;
+}
+
+.tagline {
+  font-size: 13px;
+  color: #57606a;
+}
+
+.main {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.placeholder {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 40px;
+  text-align: center;
+}
+
+.placeholder h2 {
+  font-size: 20px;
+  margin-bottom: 12px;
+  color: #1f2328;
+}
+
+.placeholder p {
+  color: #57606a;
+  line-height: 1.8;
+}
+
+.placeholder code {
+  background: #f7f8fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 13px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}

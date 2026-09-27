@@ -1,0 +1,11 @@
+{
+  "changeId": "change-001",
+  "title": "Enrich user profile response + bump zod dependency",
+  "author": "Dev Team",
+  "date": "2024-01-15T09:30:00Z",
+  "description": "Adds lastLoginAt and orderCount to the UserService.getUser() response. Also removes the try/catch error handler from PaymentService.processPayment() and upgrades zod from 3.21.4 to 3.22.4.",
+  "prDescription": "## What changed\n- `UserService.getUser()` now returns an enriched profile with `lastLoginAt` and `orderCount` derived fields.\n- `PaymentService.processPayment()` error handler removed to 'simplify' the code path.\n- `zod` bumped from 3.21.4 to 3.22.4.\n\n## Why\nFrontend dashboard requested additional user metrics in the profile response. Error handler removal was accidental cleanup.\n\n## Risk\nNot assessed.",
+  "branch": "feature/enrich-user-profile",
+  "targetBranch": "main",
+  "ticketId": "SHOP-1042"
+}

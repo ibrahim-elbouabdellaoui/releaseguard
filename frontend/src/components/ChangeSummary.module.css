@@ -1,0 +1,87 @@
+.wrapper {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2328;
+  line-height: 1.4;
+}
+
+.desc {
+  font-size: 13px;
+  color: #57606a;
+  line-height: 1.6;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metaLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #57606a;
+}
+
+.metaValue {
+  font-size: 13px;
+  color: #1f2328;
+  font-weight: 500;
+}
+
+.added {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.removed {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fileList {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.file {
+  font-size: 12px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  color: #374151;
+  background: #f7f8fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 3px 8px;
+}

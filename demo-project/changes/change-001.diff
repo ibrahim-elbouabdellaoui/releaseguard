@@ -1,0 +1,91 @@
+diff --git a/src/services/userService.js b/src/services/userService.js
+index a1b2c3d..e4f5a6b 100644
+--- a/src/services/userService.js
++++ b/src/services/userService.js
+@@ -1,10 +1,10 @@
+ /**
+  * UserService — manages user account lookups and profile data.
+  * Used by OrderService, PaymentService, and the /users API handler.
+  */
+ 
+ /**
+  * @typedef {Object} UserProfile
+  * @property {string} id
+  * @property {string} email
+  * @property {string} name
+  * @property {"standard" | "premium" | "enterprise"} tier
+  * @property {boolean} active
++ * @property {string} [lastLoginAt]
++ * @property {number} [orderCount]
+  */
+ 
+@@ -18,16 +20,22 @@ const userStore = new Map([
+ /**
+  * Retrieves a user profile by ID.
+- * Returns null if the user does not exist.
++ * Returns an enriched user profile object including derived fields.
++ * BREAKING: response shape has changed — callers that destructure only
++ * { id, email, name, tier, active } will now receive additional fields.
+  *
+  * @param {string} userId
+- * @returns {{ id: string, email: string, name: string, tier: string, active: boolean } | null}
++ * @returns {{ id: string, email: string, name: string, tier: string, active: boolean, lastLoginAt: string, orderCount: number } | null}
+  */
+ function getUser(userId) {
+   const user = userStore.get(userId);
+-  return user ?? null;
++  if (!user) return null;
++  // Enrich with derived fields
++  return {
++    ...user,
++    lastLoginAt: new Date(Date.now() - Math.random() * 7 * 24 * 3600 * 1000).toISOString(),
++    orderCount: Math.floor(Math.random() * 50),
++  };
+ }
+ 
+diff --git a/src/services/paymentService.js b/src/services/paymentService.js
+index b7c8d9e..f0a1b2c 100644
+--- a/src/services/paymentService.js
++++ b/src/services/paymentService.js
+@@ -38,14 +38,11 @@ async function processPayment(orderId, userId, amount) {
+   try {
+     const response = await axios.post(`${PAYMENT_GATEWAY_URL}/charge`, {
+       orderId,
+       userId,
+       amount: finalAmount,
+       currency: "USD",
+     });
+     return response.data;
+-  } catch (err) {
+-    // Error handler present — logs and re-throws for caller to handle
+-    console.error(`Payment failed for order ${orderId}:`, err.message);
+-    throw err;
+-  }
++  }
++  // RISK: error handler removed — payment failures will now propagate as unhandled rejections
+ }
+ 
+diff --git a/package.json b/package.json
+index c1d2e3f..a4b5c6d 100644
+--- a/package.json
++++ b/package.json
+@@ -1,14 +1,14 @@
+ {
+   "name": "shopflow-api",
+   "version": "1.4.2",
+   "description": "ShopFlow internal order management API (synthetic demo project for ReleaseGuard)",
+   "main": "src/api/server.js",
+   "scripts": {
+     "test": "node --experimental-vm-modules node_modules/.bin/jest"
+   },
+   "dependencies": {
+     "axios": "^1.5.0",
+     "express": "^4.18.2",
+-    "zod": "^3.21.4"
++    "zod": "^3.22.4"
+   },
+   "devDependencies": {
+     "jest": "^29.6.0",
+     "@types/jest": "^29.5.3"
+   }
+ }

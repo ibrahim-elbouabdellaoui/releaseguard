@@ -1,0 +1,128 @@
+{
+  "id": "change-001",
+  "generatedAt": "2024-01-15T10:45:00Z",
+  "change": {
+    "title": "Enrich user profile response + bump zod dependency",
+    "author": "Dev Team",
+    "date": "2024-01-15T09:30:00Z",
+    "description": "Adds lastLoginAt and orderCount to the UserService.getUser() response. Also removes the try/catch error handler from PaymentService.processPayment() and upgrades zod from 3.21.4 to 3.22.4.",
+    "filesChanged": [
+      "src/services/userService.js",
+      "src/services/paymentService.js",
+      "package.json"
+    ],
+    "linesAdded": 12,
+    "linesRemoved": 9
+  },
+  "verdict": {
+    "decision": "NO-GO",
+    "riskLevel": "CRITICAL",
+    "summary": "A CRITICAL risk is present: the error handler in paymentService.processPayment() was removed, meaning payment gateway failures will propagate as unhandled rejections and may crash the Node.js process. Additionally, non-deterministic Math.random() values are being served through the public user profile API. This change must not be released without remediation."
+  },
+  "analyses": {
+    "impact": {
+      "affectedComponents": [
+        "src/services/userService.js",
+        "src/services/paymentService.js",
+        "package.json",
+        "src/api/users.js",
+        "src/services/orderService.js"
+      ],
+      "blastRadius": "2 source files are impacted beyond the 3 changed files: src/api/users.js (direct consumer of getUser() — exposes enriched response to HTTP clients) and src/services/orderService.js (calls isUserActive() which internally calls getUser(), but only reads user.active — new fields are not consumed); src/services/paymentService.js is both a direct consumer of userService and one of the 3 changed files; it calls getUser() to read user.tier for discount logic (unaffected by new fields)",
+      "breakingChanges": [
+        "getUser() return shape expanded with non-deterministic fields (lastLoginAt, orderCount using Math.random()), making responses non-reproducible and untestable",
+        "getUser() response is additive (existing fields id, email, name, tier, active are unchanged — not a breaking change by standard REST semantics), but the JSDoc explicitly labels it BREAKING as a developer warning; callers that rely on strict serialisation equality or spread all fields into typed structs may be affected; the non-deterministic values compound the risk beyond a simple additive change",
+        "processPayment() catch block removed entirely in paymentService.js — axios POST errors are now unhandled, meaning payment failures will result in unhandled promise rejections rather than structured error propagation"
+      ],
+      "notes": "The zod bump from ^3.21.4 to ^3.22.4 is a minor version bump and is low risk. The highest-severity issue is the removal of the error handler in processPayment(): any downstream payment failure will bubble as an uncaught exception with no logging or graceful handling. The getUser() randomised fields (lastLoginAt, orderCount) introduce non-determinism into every caller — src/api/users.js exposes this directly to HTTP clients, src/services/orderService.js calls isUserActive() which internally calls getUser() but only reads user.active (new fields safely ignored), and src/services/paymentService.js calls getUser() to read user.tier for discount logic (current discount code does not consume the new fields, but the response is polluted with non-deterministic values)."
+    },
+    "tests": {
+      "coveredPaths": [
+        "src/services/userService.js"
+      ],
+      "uncoveredPaths": [
+        "src/services/paymentService.js"
+      ],
+      "gapSummary": "userService.js has a test file but it does not cover the changed logic: the new lastLoginAt and orderCount fields added to the getUser() response are not asserted anywhere, and the non-deterministic Math.random() values they use are entirely untested. paymentService.js has no test file at all — the removal of the catch block in processPayment() is a silent, high-risk change with zero test coverage. validation.test.js explicitly excludes PaymentService. getUsersByTier() also remains untested but was not changed in this diff.",
+      "recommendation": "Before release: (1) Add assertions to tests/userService.test.js covering the new getUser() response fields — verify lastLoginAt is a valid date/timestamp and orderCount is a non-negative integer, and consider whether Math.random() is appropriate for production data or should be replaced with deterministic values. (2) Create tests/paymentService.test.js covering processPayment() for both success and failure paths — the removed catch block means unhandled exceptions will now propagate to callers; tests must confirm the intended error-handling contract (throw, reject, or return error object) is still met."
+    },
+    "dependencies": {
+      "changed": [
+        "zod: ^3.21.4 → ^3.22.4"
+      ],
+      "regressionRisk": "LOW — minor version bump (3.21 → 3.22) within the same major version (3.x); zod follows semver and minor releases are intended to be backwards-compatible",
+      "notes": "Based on published semver conventions and training knowledge: zod 3.22.x is reported to have added new string coercion helpers (.trim(), .toLowerCase(), .toUpperCase()) and refined ZodError message formatting for certain union mismatches. No breaking changes are documented for this range — existing schemas and .parse()/.safeParse() calls should remain fully compatible. Caution: any tests that assert on exact ZodError message strings may be affected. This conclusion is derived from training data, not an in-repo changelog — verify against the official zod 3.22.x release notes before deploying. axios (^1.5.0) and express (^4.18.2) are unchanged and carry no additional risk. Transitive dependency risk is negligible: zod has zero runtime dependencies of its own."
+    },
+    "risks": [
+      {
+        "description": "Error handler removed from paymentService.processPayment(): the try/catch block that logged and re-threw payment gateway errors has been deleted. Payment failures will now propagate as unhandled promise rejections, which can crash the Node.js process or silently swallow errors depending on the runtime's unhandledRejection policy.",
+        "severity": "CRITICAL",
+        "likelihood": "HIGH",
+        "mitigationSuggestion": "Restore the catch block in processPayment(). At minimum, re-throw the error so callers can handle it; also restore the console.error log or replace it with a structured logger to preserve observability for payment failures."
+      },
+      {
+        "description": "Non-deterministic Math.random() used to compute lastLoginAt and orderCount in getUser(), which is on the hot path for the public /users API, orderService.createOrder(), and paymentService.processPayment(). Every call returns a different value for the same user, making responses non-reproducible, breaking caching, and corrupting any downstream logic that stores or compares these fields.",
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "mitigationSuggestion": "Replace the random derivations with deterministic data sources: read lastLoginAt from a real auth/session store and orderCount from an actual orders query. If real data is unavailable, omit the fields rather than fabricating them."
+      },
+      {
+        "description": "getUser() now returns fabricated orderCount and lastLoginAt values to external API clients. Serving synthetic data through a production endpoint is a data-integrity and trust risk — clients may persist, display, or make business decisions based on numbers that have no relationship to reality.",
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "mitigationSuggestion": "Do not expose derived fields until they are backed by real data. Gate the enrichment behind a feature flag or serve it from a dedicated enrichment endpoint so the core user profile remains authoritative."
+      },
+      {
+        "description": "paymentService.processPayment() calls getUser() internally and now receives the enriched profile with random fields. The current code only reads user.tier for getTierDiscount() — the new lastLoginAt and orderCount fields are not consumed. However, if future payment logic is added that branches on orderCount or other enrichment, the random values could silently affect payment routing or discount calculations. The risk is forward-looking, not a defect in the current code.",
+        "severity": "MEDIUM",
+        "likelihood": "MEDIUM",
+        "mitigationSuggestion": "Audit all callers of getUser() (paymentService, orderService, /users handler) to confirm they do not consume the new fields in any conditional or calculation. Add explicit field destructuring to callers so unexpected new fields are ignored by construction."
+      },
+      {
+        "description": "The getUser() JSDoc comment explicitly labels this a BREAKING change ('response shape has changed'), yet no migration guide, versioning bump, or deprecation notice is present. Consumers that rely on strict equality or serialisation of the response shape will break silently.",
+        "severity": "MEDIUM",
+        "likelihood": "HIGH",
+        "mitigationSuggestion": "Increment the API version (e.g. /v2/users) or the package major/minor version to signal the breaking change. Document the new fields in the API changelog and notify downstream teams before deploying."
+      },
+      {
+        "description": "zod dependency bumped from ^3.21.4 to ^3.22.4 without any corresponding update to validation schemas or test coverage. A minor version bump in a validation library can introduce subtle schema-evaluation differences that silently alter which payloads are accepted or rejected.",
+        "severity": "LOW",
+        "likelihood": "LOW",
+        "mitigationSuggestion": "Review the zod 3.22.x changelog for any breaking or behaviour-changing fixes. Run the full validation test suite against the new version and pin to an exact version (3.22.4) rather than a range if stability is critical."
+      }
+    ]
+  },
+  "remediationActions": [
+    {
+      "priority": 1,
+      "action": "Restore the try/catch error handler in paymentService.processPayment() — re-add the catch block with console.error logging and re-throw so callers receive structured error propagation.",
+      "rationale": "CRITICAL risk: removing the catch block means any axios failure on the payment gateway call becomes an unhandled promise rejection. In Node.js this can crash the process. This is the single blocking issue for release."
+    },
+    {
+      "priority": 2,
+      "action": "Replace Math.random() calls in userService.getUser() — source lastLoginAt from a real session/auth store and orderCount from a real orders query, or remove both fields until real data is available.",
+      "rationale": "HIGH risk: non-deterministic values in a core service function make every API response non-reproducible. src/api/users.js exposes these values directly to HTTP clients who may persist or act on them. The diff comment itself notes the risk."
+    },
+    {
+      "priority": 3,
+      "action": "Create tests/paymentService.test.js with test cases for processPayment() covering both the success path and the axios error path — confirm that errors are caught, logged, and re-thrown correctly.",
+      "rationale": "The removal of the catch block has zero test coverage. No test currently exercises the failure path of processPayment(), so the regression was entirely invisible to the test suite."
+    },
+    {
+      "priority": 4,
+      "action": "Update tests/userService.test.js to assert the new getUser() response fields — verify lastLoginAt is a valid ISO date string and orderCount is a non-negative integer for a known user ID.",
+      "rationale": "The existing getUser() tests only check id and email. The newly introduced fields are completely untested, and the use of Math.random() means the current test will pass but never validate the enriched contract."
+    },
+    {
+      "priority": 5,
+      "action": "Bump the shopflow-api package minor version (e.g. 1.4.2 → 1.5.0) and add an API changelog entry describing the new getUser() response fields.",
+      "rationale": "The diff JSDoc explicitly marks this as a BREAKING change. No version signal exists for downstream consumers. Without a version bump or migration notice, dependent services will break silently at deploy time."
+    },
+    {
+      "priority": 6,
+      "action": "Review zod 3.22.x changelog and run existing validation tests against the bumped version. Pin to zod@3.22.4 (exact) if test output changes.",
+      "rationale": "LOW risk — zod minor bump is backwards-compatible, but ZodError message formatting changed in 3.22.x and any tests that assert on exact error strings may fail."
+    }
+  ],
+  "releaseNotes": "## Release Notes — change-001\n\n**Branch:** feature/enrich-user-profile → main  \n**Ticket:** SHOP-1042  \n**Author:** Dev Team  \n**Date:** 2024-01-15\n\n### ⛔ Verdict: NO-GO — Risk Level: CRITICAL\n\nThis change **must not be released** in its current state. See remediation actions below.\n\n---\n\n### What Changed\n\n- **`src/services/userService.js`** — `getUser()` now returns an enriched profile object that includes two new derived fields: `lastLoginAt` (ISO timestamp) and `orderCount` (integer). The response shape is additive (existing fields unchanged) but the diff author explicitly labels it BREAKING as a developer warning. Direct consumers: `src/api/users.js` (exposes values to HTTP clients), `src/services/paymentService.js` (reads only `user.tier` — new fields not used by current payment logic), `src/services/orderService.js` (calls `isUserActive()` which reads only `user.active` — new fields safely ignored).\n\n- **`src/services/paymentService.js`** — The `try/catch` error handler in `processPayment()` was removed. Payment gateway errors previously logged via `console.error` and re-thrown to callers will now propagate as unhandled promise rejections.\n\n- **`package.json`** — `zod` dependency bumped from `^3.21.4` to `^3.22.4` (minor version, backwards-compatible).\n\n---\n\n### Dependencies Updated\n\n| Package | Before | After | Risk |\n|---|---|---|---|\n| zod | ^3.21.4 | ^3.22.4 | LOW — minor bump, no breaking changes |\n\n---\n\n### Known Issues and Risks\n\n| # | Severity | Issue |\n|---|---|---|\n| 1 | **CRITICAL** | `processPayment()` catch block removed — payment gateway failures become unhandled rejections |\n| 2 | **HIGH** | `getUser()` uses `Math.random()` for `lastLoginAt` and `orderCount` — non-deterministic, non-reproducible values served to API clients |\n| 3 | **HIGH** | Fabricated `orderCount`/`lastLoginAt` data exposed through public `/users` endpoint — data integrity risk |\n| 4 | **MEDIUM** | `getUser()` callers receive enriched profile — current payment and order logic does not consume new fields, but forward-looking risk if future code branches on them |\n| 5 | **MEDIUM** | No API version bump or migration notice for explicitly-documented BREAKING change |\n| 6 | **LOW** | zod minor bump may affect ZodError message formatting in tests |\n\n---\n\n### Required Pre-Release Actions\n\n1. **[BLOCKING]** Restore the `catch` block in `paymentService.processPayment()` with logging and re-throw.\n2. **[BLOCKING]** Replace `Math.random()` derivations in `userService.getUser()` with real data sources or remove the fields.\n3. Create `tests/paymentService.test.js` covering success and error paths in `processPayment()`.\n4. Update `tests/userService.test.js` to assert new `getUser()` response fields.\n5. Bump `shopflow-api` to version `1.5.0` and document the API change.\n6. Review zod 3.22.x changelog and run validation tests."
+}
